@@ -54,6 +54,20 @@ last reported position on an OpenStreetMap map.
 These APIs check demo user IDs only; they are not server-authenticated and are
 not suitable for production or sensitive location data.
 
+## Installable PWA
+
+The app exposes its web app manifest at `/manifest.webmanifest`, includes
+Android and Apple home-screen icons, and registers `public/sw.js`. The service
+worker caches the manifest, icons, and offline page only; reports, account
+pages, live tracking, and API responses still require a network connection.
+
+After pushing the changes and allowing Vercel to redeploy, install from Chrome's
+menu on Android or use the in-app install button. On iOS, open the site in
+Safari and choose **Share → Add to Home Screen**. You can then check the
+deployed URL with [PWABuilder](https://www.pwabuilder.com/). Creating a Play
+Store Trusted Web Activity later additionally requires an Android package ID,
+signing certificate, and a Digital Asset Links file on the deployed domain.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
