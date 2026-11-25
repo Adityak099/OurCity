@@ -1,84 +1,303 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# OurCity
 
-## Getting Started
+OurCity is a city waste-reporting and collection-tracking web application. It
+connects citizens who report waste issues, administrators who assign work, and
+drivers who collect it. The application is built with Next.js and can be
+installed on supported mobile devices as a Progressive Web App (PWA).
 
-First, run the development server:
+## Contents
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- [Features](#features)
+- [Technology](#technology)
+- [Requirements](#requirements)
+- [Run locally](#run-locally)
+- [Environment variables](#environment-variables)
+- [Demo accounts](#demo-accounts)
+- [Application workflows](#application-workflows)
+- [API routes](#api-routes)
+- [Project structure](#project-structure)
+- [Install the PWA](#install-the-pwa)
+- [Deploy to Vercel](#deploy-to-vercel)
+- [Security and production readiness](#security-and-production-readiness)
+- [Useful commands](#useful-commands)
+
+## Features
+
+### Citizen portal
+
+- Submit a waste complaint with a description, coordinates, and an optional
+  image.
+- Use the device's location services to capture the report location.
+- Look up a nearby place and area name when a reverse-geocoding service is
+  configured.
+- Review submitted complaints and their collection status.
+- View the assigned driver's most recently shared location while a collection
+  is active.
+
+### Admin portal
+
+- Review reported complaints and their locations.
+- Assign available work to a driver.
+- Follow complaint status as drivers start and complete collection work.
+
+### Driver portal
+
+- View work assigned by the admin.
+- Start and complete an assigned collection.
+- Open directions to the report location using OpenStreetMap.
+- Share device location while an active collection is in progress. The driver's
+  location is available to the reporting citizen while the driver portal is
+  open and location permission is granted.
+
+### Progressive Web App
+
+- Provides a web app manifest, Android and Apple home-screen icons, and an
+  install experience for supported browsers.
+- Offers a basic offline page when a navigation request cannot reach the
+  network.
+- Keeps API responses and personalized pages out of the service-worker cache.
+
+## Technology
+
+- **Application:** Next.js App Router, React
+- **Styling:** Tailwind CSS and project CSS
+- **Maps:** Leaflet and React Leaflet with OpenStreetMap-based map tiles
+- **Database:** MongoDB through Mongoose
+- **Image storage:** Cloudinary
+- **Place lookup:** Self-hosted Nominatim-compatible reverse-geocoding service
+- **Deployment:** Vercel (recommended)
+
+## Requirements
+
+- Node.js 20.9 or later
+- npm (the repository includes `package-lock.json`)
+- MongoDB connection details for complaint persistence
+- Cloudinary credentials if reports will include uploaded images
+- A self-hosted Nominatim-compatible service if place and area names are
+  required
+
+## Run locally
+
+1. Install the dependencies:
+
+   ```bash
+   npm ci
+   ```
+
+2. Create a `.env.local` file in the repository root and add the environment
+   variables described in [Environment variables](#environment-variables).
+   `.env.local` is ignored by Git.
+
+3. Start the development server:
+
+   ```bash
+   npm run dev
+   ```
+
+4. Open [http://localhost:3000](http://localhost:3000).
+
+The report database and image-upload features need their corresponding services
+configured. Browser geolocation also requires the user's permission. Browsers
+generally require HTTPS for location access; `localhost` is allowed for local
+development.
+
+## Environment variables
+
+Set these in `.env.local` for local development and in the deployment
+platform's environment-variable settings for deployed environments.
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `MONGODB_URI` | Yes, for complaint persistence | MongoDB connection URI. Use the URI for your own MongoDB deployment or Atlas cluster. |
+| `MONGODB_DB` | No | Database name override. If omitted, the database in the URI is used; when the URI has no database path, the application defaults to `ourcity`. |
+| `CLOUDINARY_CLOUD_NAME` | For image uploads | Cloudinary cloud name. |
+| `CLOUDINARY_API_KEY` | For image uploads | Cloudinary API key. |
+| `CLOUDINARY_API_SECRET` | For image uploads | Cloudinary API secret. |
+| `NOMINATIM_BASE_URL` | No | Base URL of a self-hosted Nominatim-compatible service. Without it, coordinates can still be submitted, but place and area names are unavailable. |
+| `NOMINATIM_USER_AGENT` | No | User-Agent value sent to the reverse-geocoding service. The application has a development default if this is omitted. |
+
+Example `.env.local` structure:
+
+```dotenv
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>/<database>?retryWrites=true&w=majority
+MONGODB_DB=ourcity
+
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+
+NOMINATIM_BASE_URL=https://<your-geocoder-host>
+NOMINATIM_USER_AGENT=OurCity/0.1.0 (you@example.com)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Replace placeholders with your own values. Do not commit credentials, paste
+them into source code, or expose them through `NEXT_PUBLIC_` variables. If a
+MongoDB username or password contains reserved URL characters, URL-encode
+those characters in the connection URI.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+Complaint images are stored in the Cloudinary `ourcity/reports` folder. MongoDB
+stores complaint data and image references. Existing records in
+`data/complaints.json` are not automatically imported into MongoDB.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Demo accounts
 
-## Reverse geocoding
+The login page provides buttons that fill the following demo credentials:
 
-The complaint form uses a self-hosted Nominatim instance to display a place and
-area name after capturing a location. Set `NOMINATIM_BASE_URL` in `.env.local`
-to the instance's base URL (for example, `https://geocoder.example.com`). The
-public Nominatim service is not used. Without this setting, the form still
-captures and submits coordinates, but cannot display place and area names.
+| Role | Email | Password |
+| --- | --- | --- |
+| Citizen | `citizen@cleancity.demo` | `citizen123` |
+| Admin | `admin@cleancity.demo` | `admin123` |
+| Driver | `driver@cleancity.demo` | `driver123` |
 
-## Data storage
+These are demonstration accounts, not production user accounts. The current
+login and role handling are not a secure authentication system; see
+[Security and production readiness](#security-and-production-readiness).
 
-Complaint records are stored in MongoDB using the server-only `MONGODB_URI`
-setting. Add `MONGODB_DB` to select a database explicitly; if omitted, the
-database in the URI is used, or `ourcity` when the URI has no database path.
-Complaint images are uploaded to the `ourcity/reports` folder in Cloudinary
-using `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and
-`CLOUDINARY_API_SECRET`. Keep these values server-side; never prefix them with
-`NEXT_PUBLIC_`. Existing `data/complaints.json` records are not automatically
-migrated. The MongoDB client is reused across requests with the driver's
-default connection-pool settings; monitor Atlas connection and operation
-metrics after deployment before considering pool tuning.
+## Application workflows
 
-## Admin and driver dashboards
+### Report and track a complaint
 
-The admin dashboard assigns complaints to drivers. The driver portal supports
-starting and completing assigned work. Starting collection requires browser
-location permission; while the active driver portal is open, the driver's
-location is shared with the reporting citizen and refreshed approximately every
-five seconds. Sharing stops when the task is completed. Drivers can open
-OpenStreetMap directions to the report location, and citizens see the driver's
-last reported position on an OpenStreetMap map.
+1. Sign in through the citizen portal.
+2. Create a complaint and provide a description.
+3. Allow location access to capture coordinates. If reverse geocoding is
+   configured, the form can also display nearby place and area names.
+4. Optionally attach an image. Image upload requires valid Cloudinary
+   credentials.
+5. Follow the complaint's status from the citizen dashboard. Once a driver
+   starts the assigned collection and shares a location, the citizen can view
+   the driver's most recently reported position.
 
-These APIs check demo user IDs only; they are not server-authenticated and are
-not suitable for production or sensitive location data.
+### Assign and collect work
 
-## Installable PWA
+1. An admin reviews complaints and assigns work to a driver.
+2. The driver opens their dashboard and starts the assigned collection.
+3. The active collection is reflected in the complaint's status. The driver
+   can open directions to the complaint location and share their location
+   while the active driver portal is open.
+4. When the driver completes the collection, location sharing for that task
+   stops and the complaint status is updated.
 
-The app exposes its web app manifest at `/manifest.webmanifest`, includes
-Android and Apple home-screen icons, and registers `public/sw.js`. The service
-worker caches the manifest, icons, and offline page only; reports, account
-pages, live tracking, and API responses still require a network connection.
+Location sharing depends on browser permission, device location availability,
+network connectivity, and the active driver portal remaining open.
 
-After pushing the changes and allowing Vercel to redeploy, install from Chrome's
-menu on Android or use the in-app install button. On iOS, open the site in
-Safari and choose **Share → Add to Home Screen**. You can then check the
-deployed URL with [PWABuilder](https://www.pwabuilder.com/). Creating a Play
-Store Trusted Web Activity later additionally requires an Android package ID,
-signing certificate, and a Digital Asset Links file on the deployed domain.
+## API routes
 
-## Learn More
+These are application routes used by the web client. They are not a published
+or production-secured public API.
 
-To learn more about Next.js, take a look at the following resources:
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET`, `POST` | `/api/complaints` | Read complaints and submit a complaint. |
+| `GET`, `PATCH` | `/api/admin/complaints` | Read and update complaints in the admin workflow, including assignments. |
+| `GET`, `PATCH` | `/api/driver/complaints` | Read driver work and update collection progress/location. |
+| `GET` | `/api/location/reverse?lat=<latitude>&lon=<longitude>` | Resolve coordinates to a nearby place and area name. |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```text
+components/
+  admin/       Admin dashboard
+  auth/        Demo authentication provider and route guards
+  citizen/     Complaint form, complaint list, and live tracking map
+  driver/      Driver dashboard
+  home/        Landing-page sections
+  layout/      Navigation, footer, and theme controls
+  pwa/         Install prompt and service-worker registration
+data/          Legacy/local data files; not automatically migrated
+lib/server/    MongoDB and Cloudinary server-side helpers
+public/
+  pwa-icons/   PWA and Apple home-screen icons
+  sw.js        Service worker
+  offline.html Offline navigation fallback
+src/app/
+  api/         Next.js API route handlers
+  admin/       Admin dashboard route
+  citizen/     Citizen dashboard and complaint routes
+  driver/      Driver dashboard route
+  login/       Demo login page
+  manifest.js  Web app manifest
+```
 
-## Deploy on Vercel
+## Install the PWA
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The app's manifest is available at `/manifest.webmanifest`. The service worker
+is served from `/sw.js`; it caches the manifest, install icons, and offline
+page. It does not cache `/api/` responses or personalized pages, so reporting,
+account pages, and live tracking require an internet connection.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Install on Android
+
+1. Deploy the latest application version to an HTTPS domain.
+2. Open the site in a supported browser such as Chrome.
+3. Select **Install OurCity** if the in-app install button is available, or
+   choose **Install app** / **Add to Home screen** from the browser menu.
+
+### Add to the iPhone home screen
+
+1. Open the deployed site in Safari.
+2. Tap **Share**, then choose **Add to Home Screen**.
+
+### Use PWABuilder
+
+PWABuilder must be able to access the deployed manifest and icons. After
+deploying the PWA changes:
+
+1. Open [PWABuilder](https://www.pwabuilder.com/).
+2. Enter the deployed HTTPS URL and run the analysis.
+3. Review any reported manifest, service-worker, or platform-specific
+   recommendations.
+
+Installing the PWA from a browser does not require an APK. Packaging an Android
+Trusted Web Activity (TWA) for store distribution is a separate task and
+requires an Android application/package ID, a signing key, and a
+Digital Asset Links file hosted on the app's domain.
+
+## Deploy to Vercel
+
+1. Push the repository to the Git provider connected to your Vercel project.
+2. In Vercel project settings, add the environment variables needed for the
+   target environment. Do not commit `.env` or `.env.local`.
+3. Deploy the project and wait for the build to complete.
+4. Open the deployed site and verify that `/manifest.webmanifest`, `/sw.js`,
+   and the files under `/pwa-icons/` are reachable.
+5. Run PWABuilder against the deployed HTTPS URL if you want to inspect PWA
+   readiness or prepare a store package.
+
+The PWA changes are not visible to PWABuilder or mobile browsers until the
+updated application has been deployed.
+
+## Security and production readiness
+
+The current application is intended for demonstration and development. Do not
+use it to handle sensitive personal or operational data without additional
+security work:
+
+- The demo login credentials are included in the client-side application.
+- API authorization relies on demo user identifiers and is not server-side
+  authentication or robust role-based access control.
+- Driver location is sensitive data. Implement authenticated access,
+  authorization, retention limits, and clear consent before using real driver
+  or citizen data.
+- Configure MongoDB and Cloudinary credentials as server-side environment
+  variables. Restrict service access according to your deployment's security
+  requirements.
+- Use HTTPS in deployed environments and review access to reports, images, and
+  location data before inviting real users.
+
+## Useful commands
+
+| Command | Description |
+| --- | --- |
+| `npm ci` | Install the exact dependency versions from `package-lock.json`. |
+| `npm run dev` | Start the local development server. |
+| `npm run lint` | Run ESLint. |
+| `npm run build` | Create a production build. |
+| `npm run start` | Start the production server after a successful build. |
+
+## Further reading
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Next.js App Router](https://nextjs.org/docs/app)
+- [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying)
+- [Vercel](https://vercel.com/)
+- [PWABuilder](https://www.pwabuilder.com/)
