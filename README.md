@@ -20,6 +20,40 @@ You can start editing the page by modifying `app/page.js`. The page auto-updates
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Reverse geocoding
+
+The complaint form uses a self-hosted Nominatim instance to display a place and
+area name after capturing a location. Set `NOMINATIM_BASE_URL` in `.env.local`
+to the instance's base URL (for example, `https://geocoder.example.com`). The
+public Nominatim service is not used. Without this setting, the form still
+captures and submits coordinates, but cannot display place and area names.
+
+## Data storage
+
+Complaint records are stored in MongoDB using the server-only `MONGODB_URI`
+setting. Add `MONGODB_DB` to select a database explicitly; if omitted, the
+database in the URI is used, or `ourcity` when the URI has no database path.
+Complaint images are uploaded to the `ourcity/reports` folder in Cloudinary
+using `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and
+`CLOUDINARY_API_SECRET`. Keep these values server-side; never prefix them with
+`NEXT_PUBLIC_`. Existing `data/complaints.json` records are not automatically
+migrated. The MongoDB client is reused across requests with the driver's
+default connection-pool settings; monitor Atlas connection and operation
+metrics after deployment before considering pool tuning.
+
+## Admin and driver dashboards
+
+The admin dashboard assigns complaints to drivers. The driver portal supports
+starting and completing assigned work. Starting collection requires browser
+location permission; while the active driver portal is open, the driver's
+location is shared with the reporting citizen and refreshed approximately every
+five seconds. Sharing stops when the task is completed. Drivers can open
+OpenStreetMap directions to the report location, and citizens see the driver's
+last reported position on an OpenStreetMap map.
+
+These APIs check demo user IDs only; they are not server-authenticated and are
+not suitable for production or sensitive location data.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
