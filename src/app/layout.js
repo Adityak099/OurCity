@@ -1,14 +1,16 @@
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
 
-import { AuthProvider } from "../../components/auth/AuthProvider";
-import ThemeToggle from "../../components/layout/ThemeToggle";
-import PwaSupport from "../../components/pwa/PwaSupport";
+import { AuthProvider } from "@/components/auth/AuthProvider";
+import PwaSupport from "@/components/pwa/PwaSupport";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
+import RouteFooter from "@/components/layout/RouteFooter";
 
 export const metadata = {
-  title: "CleanCity | Smarter Waste. Cleaner Streets.",
+  title: "OurCity | A Smart Solution for a Cleaner India.",
   description:
-    "CleanCity connects citizens, waste collection teams and city authorities to build cleaner and greener cities.",
+    "OurCity connects citizens, waste collection teams and city authorities to build cleaner and greener cities.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -24,25 +26,21 @@ export const metadata = {
 };
 
 export const viewport = {
-  themeColor: "#176b45",
+  themeColor: "rgb(247 249 244)",
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "try{var t=localStorage.getItem('cleancity-theme');if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.classList.toggle('dark',t==='dark')}catch(e){}",
-          }}
-        />
-      </head>
+    <html lang="en" style={{ colorScheme: "light" }}>
       <body>
+        <a href="#main-content" className="skip-link">Skip to main content</a>
         <AuthProvider>
+          <Navbar />
           {children}
+          <RouteFooter>
+            <Footer />
+          </RouteFooter>
           <PwaSupport />
-          <ThemeToggle />
         </AuthProvider>
       </body>
     </html>

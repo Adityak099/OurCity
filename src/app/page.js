@@ -1,27 +1,19 @@
-"use client";
-import Navbar from "../../components/layout/Navbar";
-import Footer from "../../components/layout/Footer";
-
-import Hero from "../../components/home/Hero";
-import Features from "../../components/home/Features";
-import HowItWorks from "../../components/home/HowItWorks";
-import Portals from "../../components/home/Portals";
-import Impact from "../../components/home/Impact";
+import Hero from "@/components/home/Hero";
+import Features from "@/components/home/Features";
+import HowItWorks from "@/components/home/HowItWorks";
+import Portals from "@/components/home/Portals";
+import Impact from "@/components/home/Impact";
+import RecentReports from "@/components/home/RecentReports";
 
 export default function Home() {
   return (
-    <>
-      <Navbar />
-
-      <main>
-        <Hero />
-        <Features />
-        <HowItWorks />
-        <Portals />
-        <Impact />
-      </main>
-
-      <Footer />
-    </>
+    <main id="main-content" className="home-page">
+      <Hero />
+      <Features />
+      <HowItWorks />
+      <Portals />
+      <Impact />
+      <RecentReports />
+    </main>
   );
 }

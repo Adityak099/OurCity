@@ -109,6 +109,8 @@ platform's environment-variable settings for deployed environments.
 | Variable | Required | Description |
 | --- | --- | --- |
 | `MONGODB_URI` | Yes, for complaint persistence | MongoDB connection URI. Use the URI for your own MongoDB deployment or Atlas cluster. |
+| `AUTH_SESSION_SECRET` | Yes, for authentication | Random secret with at least 32 characters used to sign the HTTP-only session cookie. |
+| `AUTH_BOOTSTRAP_KEY` | Once, for first admin setup | Random secret with at least 32 characters. Remove it from the deployment after creating the initial admin. |
 | `MONGODB_DB` | No | Database name override. If omitted, the database in the URI is used; when the URI has no database path, the application defaults to `ourcity`. |
 | `CLOUDINARY_CLOUD_NAME` | For image uploads | Cloudinary cloud name. |
 | `CLOUDINARY_API_KEY` | For image uploads | Cloudinary API key. |
@@ -121,6 +123,8 @@ Example `.env.local` structure:
 ```dotenv
 MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>/<database>?retryWrites=true&w=majority
 MONGODB_DB=ourcity
+AUTH_SESSION_SECRET=<random-secret-at-least-32-characters>
+AUTH_BOOTSTRAP_KEY=<different-random-secret-at-least-32-characters>
 
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
@@ -139,31 +143,33 @@ Complaint images are stored in the Cloudinary `ourcity/reports` folder. MongoDB
 stores complaint data and image references. Existing records in
 `data/complaints.json` are not automatically imported into MongoDB.
 
-## Demo accounts
+## Authentication and roles
 
-The login page provides buttons that fill the following demo credentials:
+Citizens create accounts from the sign-in page. Passwords are stored in MongoDB
+as salted scrypt hashes, and sessions use an HTTP-only, signed cookie. Admins
+create admin and driver accounts from the Role accounts section of the admin
+dashboard. Role selection is not available during public registration.
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Citizen | `citizen@cleancity.demo` | `citizen123` |
-| Admin | `admin@cleancity.demo` | `admin123` |
-| Driver | `driver@cleancity.demo` | `driver123` |
-
-These are demonstration accounts, not production user accounts. The current
-login and role handling are not a secure authentication system; see
-[Security and production readiness](#security-and-production-readiness).
+Before enabling sign-in, set `MONGODB_URI` and a unique
+`AUTH_SESSION_SECRET` (at least 32 characters) in `.env.local` and in the
+deployment environment. Existing demo credentials have been removed. For the
+first admin only, temporarily configure a different 32-character
+`AUTH_BOOTSTRAP_KEY`, then POST `{ "name", "email", "password" }` to
+`/api/auth/bootstrap` with that value in the `x-bootstrap-key` header. The
+endpoint refuses creation once an admin exists; remove `AUTH_BOOTSTRAP_KEY`
+from the environment immediately afterward. Use the admin dashboard to create
+additional admin and driver accounts.
 
 ## Application workflows
 
 ### Report and track a complaint
 
-1. Sign in through the citizen portal.
-2. Create a complaint and provide a description.
-3. Allow location access to capture coordinates. If reverse geocoding is
-   configured, the form can also display nearby place and area names.
-4. Optionally attach an image. Image upload requires valid Cloudinary
+1. Create a citizen account or continue to file a public spot report.
+2. Capture your current location, create the complaint and provide a description.
+3. Allow location access to capture coordinates. If reverse geocoding is configured, the form can also display nearby place and area names.
+4. Attach an image. Image upload requires valid Cloudinary
    credentials.
-5. Follow the complaint's status from the citizen dashboard. Once a driver
+5. Citizens who are signed in can follow reports from their citizen dashboard. Public reports can be checked using the reference and contact number. Once a driver
    starts the assigned collection and shares a location, the citizen can view
    the driver's most recently reported position.
 
@@ -189,7 +195,13 @@ or production-secured public API.
 | --- | --- | --- |
 | `GET`, `POST` | `/api/complaints` | Read complaints and submit a complaint. |
 | `GET`, `PATCH` | `/api/admin/complaints` | Read and update complaints in the admin workflow, including assignments. |
+| `GET`, `POST` | `/api/admin/users` | List staff and create admin or driver accounts (admin role required). |
 | `GET`, `PATCH` | `/api/driver/complaints` | Read driver work and update collection progress/location. |
+| `POST` | `/api/auth/register` | Register a citizen account. |
+| `POST` | `/api/auth/bootstrap` | One-time first-admin creation when no admin exists; requires `AUTH_BOOTSTRAP_KEY`. |
+| `POST` | `/api/auth/login` | Sign in with an account. |
+| `POST` | `/api/auth/logout` | Clear the session cookie. |
+| `GET` | `/api/auth/session` | Read the current session. |
 | `GET` | `/api/location/reverse?lat=<latitude>&lon=<longitude>` | Resolve coordinates to a nearby place and area name. |
 
 ## Project structure
@@ -197,7 +209,7 @@ or production-secured public API.
 ```text
 components/
   admin/       Admin dashboard
-  auth/        Demo authentication provider and route guards
+  auth/        Authentication provider and role route guards
   citizen/     Complaint form, complaint list, and live tracking map
   driver/      Driver dashboard
   home/        Landing-page sections
@@ -214,7 +226,7 @@ src/app/
   admin/       Admin dashboard route
   citizen/     Citizen dashboard and complaint routes
   driver/      Driver dashboard route
-  login/       Demo login page
+  login/       Sign-in and citizen registration page
   manifest.js  Web app manifest
 ```
 

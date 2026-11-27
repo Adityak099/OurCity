@@ -180,6 +180,7 @@ export async function GET(request) {
   const responsePayload = {
     place: place || "Not available",
     area: area || "Not available",
+    city: [address.city, address.town, address.village, address.municipality].find((part) => typeof part === "string" && part.trim())?.trim() || "Not available",
   };
 
   // Store in cache (cap cache size at 500 entries)

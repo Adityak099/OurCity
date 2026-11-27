@@ -3,14 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#176b45" />
+    <meta name="theme-color" content="#F8FAFC" />
     <title>Offline | OurCity</title>
     <style>
       :root {
-        color-scheme: light dark;
+        color-scheme: light;
+        --civic-bg: #F8FAFC;
+        --civic-slate: #0F172A;
+        --civic-border: #E2E8F0;
+        --civic-blue: #1D4ED8;
         font-family: Arial, sans-serif;
-        background: #f7faf7;
-        color: #17251c;
+        background: var(--civic-bg);
+        color: var(--civic-slate);
       }
 
       body {
@@ -25,7 +29,7 @@
       main {
         max-width: 420px;
         padding: 28px;
-        border: 1px solid #dbe5dc;
+        border: 1px solid var(--civic-border);
         border-radius: 16px;
         background: white;
         text-align: center;
@@ -33,7 +37,7 @@
 
       h1 {
         margin: 0 0 12px;
-        color: #176b45;
+        color: var(--civic-blue);
       }
 
       p {
@@ -45,22 +49,10 @@
         padding: 12px 18px;
         border: 0;
         border-radius: 8px;
-        background: #176b45;
+        background: var(--civic-blue);
         color: white;
         font-size: 15px;
         font-weight: 700;
-      }
-
-      @media (prefers-color-scheme: dark) {
-        :root {
-          background: #101b15;
-          color: #edf4ef;
-        }
-
-        main {
-          border-color: #31483a;
-          background: #17251c;
-        }
       }
     </style>
   </head>

@@ -1,38 +1,13 @@
 import { NextResponse } from "next/server";
 
-import {
-  getComplaints,
-  updateComplaint,
-} from "../../../../../lib/server/complaints-store";
-import { DEMO_USERS } from "../../../../lib/demo-user";
+import { getComplaints, getUsersByRole, updateComplaint } from "@/lib/server/complaints-store";
+import { requireRole } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
-const COMPLAINT_STATUSES = [
-  "Submitted",
-  "Assigned",
-  "In Progress",
-  "Resolved",
-];
-
-const STATUS_TRANSITIONS = {
-  Submitted: ["Submitted", "Assigned"],
-  Assigned: ["Submitted", "Assigned"],
-  "In Progress": ["In Progress"],
-  Resolved: ["Resolved"],
-};
-
-function isDemoAdmin(adminId) {
-  return DEMO_USERS.some(
-    (account) => account.id === adminId && account.role === "admin",
-  );
-}
-
 export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  const adminId = searchParams.get("adminId");
-
-  if (!isDemoAdmin(adminId)) {
+  const admin = await requireRole("admin");
+  if (!admin) {
     return NextResponse.json(
       { success: false, message: "Admin access is required." },
       { status: 403 },
@@ -40,21 +15,12 @@ export async function GET(request) {
   }
 
   try {
-    const [complaints, drivers] = await Promise.all([
-      getComplaints(),
-      Promise.resolve(
-        DEMO_USERS.filter((account) => account.role === "driver").map(
-          ({ id, name, vehicleNumber, assignedWard }) => ({
-            id,
-            name,
-            vehicleNumber,
-            assignedWard,
-          }),
-        ),
-      ),
-    ]);
+    const [complaints, driverAccounts] = await Promise.all([getComplaints(), getUsersByRole("driver")]);
+    const drivers = driverAccounts.map(({ _id, name, vehicleNumber, assignedWard }) => ({ id: String(_id), name, vehicleNumber, assignedWard }));
 
-    return NextResponse.json({ success: true, complaints, drivers });
+    const normalized = complaints.map((item) => ({ ...item, status: item.status === "Submitted" ? "Reported" : item.status === "Resolved" ? "Cleaned" : item.status }));
+    const areas = Object.values(normalized.reduce((map, item) => { const key = `${item.city || "Unknown"}|${item.area || "Unknown"}`; map[key] ||= { city: item.city || "Unknown", area: item.area || "Unknown", total: 0, reported: 0, inProgress: 0, cleaned: 0 }; map[key].total++; if (["Reported", "Submitted"].includes(item.status)) map[key].reported++; if (item.status === "In Progress") map[key].inProgress++; if (["Cleaned", "Resolved"].includes(item.status)) map[key].cleaned++; return map; }, {}));
+    return NextResponse.json({ success: true, complaints: normalized, drivers, areas });
   } catch (error) {
     console.error(
       "GET admin complaints error:",
@@ -70,163 +36,28 @@ export async function GET(request) {
 }
 
 export async function PATCH(request) {
-  let payload;
-
-  try {
-    payload = await request.json();
-  } catch {
-    return NextResponse.json(
-      { success: false, message: "A valid JSON request is required." },
-      { status: 400 },
-    );
-  }
-
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return NextResponse.json(
-      { success: false, message: "A valid complaint update is required." },
-      { status: 400 },
-    );
-  }
-
-  if (!isDemoAdmin(payload.adminId)) {
+  if (!(await requireRole("admin"))) {
     return NextResponse.json(
       { success: false, message: "Admin access is required." },
       { status: 403 },
     );
   }
 
-  if (typeof payload.complaintId !== "string" || !payload.complaintId.trim()) {
-    return NextResponse.json(
-      { success: false, message: "A complaint ID is required." },
-      { status: 400 },
-    );
-  }
-
-  const hasStatus = Object.hasOwn(payload, "status");
-  const hasAssignment = Object.hasOwn(payload, "assignedDriverId");
-
-  if (!hasStatus && !hasAssignment) {
-    return NextResponse.json(
-      { success: false, message: "No complaint updates were provided." },
-      { status: 400 },
-    );
-  }
-
-  if (hasStatus && !COMPLAINT_STATUSES.includes(payload.status)) {
-    return NextResponse.json(
-      { success: false, message: "Invalid complaint status." },
-      { status: 400 },
-    );
-  }
-
-  const drivers = DEMO_USERS.filter((account) => account.role === "driver");
-
-  if (
-    hasAssignment &&
-    payload.assignedDriverId !== null &&
-    !drivers.some((driver) => driver.id === payload.assignedDriverId)
-  ) {
-    return NextResponse.json(
-      { success: false, message: "Select a valid driver." },
-      { status: 400 },
-    );
-  }
-
+  let payload;
+  try { payload = await request.json(); } catch { return NextResponse.json({ success: false, message: "Valid JSON is required." }, { status: 400 }); }
+  if (typeof payload?.complaintId !== "string" || typeof payload.assignedDriverId !== "string") return NextResponse.json({ success: false, message: "A report and driver are required." }, { status: 400 });
   try {
-    const complaints = await getComplaints();
-    const currentComplaint = complaints.find(
-      (complaint) => complaint.id === payload.complaintId,
-    );
-
-    if (!currentComplaint) {
-      return NextResponse.json(
-        { success: false, message: "Complaint not found." },
-        { status: 404 },
-      );
-    }
-
-    if (currentComplaint.status === "Resolved") {
-      return NextResponse.json(
-        { success: false, message: "Resolved complaints cannot be changed." },
-        { status: 409 },
-      );
-    }
-
-    if (
-      currentComplaint.status === "In Progress" &&
-      hasAssignment &&
-      payload.assignedDriverId !== currentComplaint.assignedDriverId
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "An active collection cannot be reassigned.",
-        },
-        { status: 409 },
-      );
-    }
-
-    let assignedDriverId = hasAssignment
-      ? payload.assignedDriverId
-      : currentComplaint.assignedDriverId;
-    let status = hasStatus ? payload.status : currentComplaint.status;
-
-    if (!hasStatus && hasAssignment) {
-      if (currentComplaint.status === "Submitted" && assignedDriverId) {
-        status = "Assigned";
-      } else if (currentComplaint.status === "Assigned" && !assignedDriverId) {
-        status = "Submitted";
-      }
-    }
-
-    if (!STATUS_TRANSITIONS[currentComplaint.status]?.includes(status)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: `A complaint cannot move from ${currentComplaint.status} to ${status}.`,
-        },
-        { status: 409 },
-      );
-    }
-
-    if (
-      ["Assigned", "In Progress", "Resolved"].includes(status) &&
-      !assignedDriverId
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Assign a driver before advancing the complaint status.",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (status === "Submitted") assignedDriverId = null;
-
-    const complaint = await updateComplaint(payload.complaintId, {
-      status,
-      assignedDriverId,
-    });
-
-    if (!complaint) {
-      return NextResponse.json(
-        { success: false, message: "Complaint not found." },
-        { status: 404 },
-      );
-    }
-
-    return NextResponse.json({ success: true, complaint });
+    const existing = (await getComplaints()).find((item) => item.id === payload.complaintId);
+    if (!existing) return NextResponse.json({ success: false, message: "Report not found." }, { status: 404 });
+    if (["In Progress", "Resolved", "Cleaned"].includes(existing.status)) return NextResponse.json({ success: false, message: "An active or completed report cannot be reassigned." }, { status: 409 });
+    const driverAccounts = await getUsersByRole("driver");
+    const driver = payload.assignedDriverId ? driverAccounts.find((item) => String(item._id) === payload.assignedDriverId) : null;
+    if (payload.assignedDriverId && !driver) return NextResponse.json({ success: false, message: "Select an active driver account." }, { status: 400 });
+    const complaint = await updateComplaint(payload.complaintId, { assignedDriverId: driver ? String(driver._id) : null, driverName: driver?.name || null, status: driver ? "Assigned" : "Reported" });
+    if (!complaint) return NextResponse.json({ success: false, message: "Report not found." }, { status: 404 });
+    return NextResponse.json({ success: true, complaint: { ...complaint, status: complaint.status === "Submitted" ? "Reported" : complaint.status } });
   } catch (error) {
-    console.error(
-      "PATCH admin complaint error:",
-      error?.name || "UnknownError",
-      error?.code || "",
-    );
-
-    return NextResponse.json(
-      { success: false, message: "Unable to update this complaint." },
-      { status: 500 },
-    );
+    console.error("Admin report assignment error:", error?.name || "UnknownError");
+    return NextResponse.json({ success: false, message: "Unable to update this report." }, { status: 500 });
   }
 }
